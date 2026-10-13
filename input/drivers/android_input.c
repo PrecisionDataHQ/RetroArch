@@ -1903,6 +1903,21 @@ static INLINE void android_input_poll_event_type_key(
 {
    int action = AKeyEvent_getAction(event);
 
+   if (keycode == AKEYCODE_BACK)
+   {
+      if (     action == AKEY_EVENT_ACTION_DOWN
+            && (AKeyEvent_getFlags(event) & AKEY_EVENT_FLAG_LONG_PRESS))
+         command_event(CMD_EVENT_QUIT, NULL);
+      android_key_state_write(
+            android_key_state[port >= 0 && port <= ANDROID_KEYBOARD_PORT
+               ? port : ANDROID_KEYBOARD_PORT],
+            android_key_state[ANDROID_KEYBOARD_PORT],
+            LAST_KEYCODE, keycode, source, false);
+      *handled = 1;
+      return;
+   }
+
+
    /* android_key_state[] has one row per pad slot plus the
     * dedicated keyboard row at ANDROID_KEYBOARD_PORT. */
    if (port < 0 || port > ANDROID_KEYBOARD_PORT)
