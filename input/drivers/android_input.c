@@ -119,6 +119,10 @@ enum {
  * Every bit index used against a row must be < LAST_KEYCODE;
  * writers bound incoming keycodes, readers bound bind keysyms. */
 static uint8_t android_key_state[DEFAULT_MAX_PADS + 1][MAX_KEYS];
+static bool joyorbit_exit_start_down = false;
+static bool joyorbit_exit_select_down = false;
+static int joyorbit_exit_device = -1;
+
 
 /* Samsung S-Pen firmware emits phantom touchscreen DOWN events shortly
  * after a hover ends. arm() records the last hover point and a deadline;
@@ -1050,6 +1054,9 @@ static void android_input_poll_main_cmd(void)
          retro_atomic_store_release_int(&android_app->unfocused, 0);
          break;
       case APP_CMD_LOST_FOCUS:
+         joyorbit_exit_start_down = false;
+         joyorbit_exit_select_down = false;
+         joyorbit_exit_device = -1;
          android_keypress_vibrate_pending = false;
          {
             bool disable_accelerometer  = (android_app->sensor_state_mask &
@@ -1179,6 +1186,10 @@ static void *android_input_init(const char *joypad_driver)
 
    if (!android)
       return NULL;
+
+   joyorbit_exit_start_down = false;
+   joyorbit_exit_select_down = false;
+   joyorbit_exit_device = -1;
 
    android->mouse_activated = false;
    android->pads_connected = 0;
@@ -1902,6 +1913,28 @@ static INLINE void android_input_poll_event_type_key(
       int type_event, int *handled)
 {
    int action = AKeyEvent_getAction(event);
+
+   if (keycode == AKEYCODE_BUTTON_START || keycode == AKEYCODE_BUTTON_SELECT)
+   {
+      if (joyorbit_exit_device != AInputEvent_getDeviceId(event))
+      {
+         joyorbit_exit_start_down = false;
+         joyorbit_exit_select_down = false;
+         joyorbit_exit_device = AInputEvent_getDeviceId(event);
+      }
+      if (keycode == AKEYCODE_BUTTON_START)
+         joyorbit_exit_start_down = action == AKEY_EVENT_ACTION_DOWN;
+      else
+         joyorbit_exit_select_down = action == AKEY_EVENT_ACTION_DOWN;
+      if (joyorbit_exit_start_down && joyorbit_exit_select_down)
+      {
+         joyorbit_exit_start_down = false;
+         joyorbit_exit_select_down = false;
+         command_event(CMD_EVENT_QUIT, NULL);
+         *handled = 1;
+         return;
+      }
+   }
 
    if (keycode == AKEYCODE_BACK)
    {
